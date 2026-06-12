@@ -15,11 +15,10 @@ check_response() {
   server_PID=$!
   desc=$1
   expected=$2
-  sleep 0.2 # let it bind
-
+  sleep 1
   echo -e "\n[TEST]: $desc -> $HTTP $*" >> "$LOG_FILE"
 
-  RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+  RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)
   kill $server_PID
   wait $server_PID 2> /dev/null
 
