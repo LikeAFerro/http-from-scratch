@@ -41,17 +41,14 @@ http_status_t http_server() {
         char buffer[BUFFER_SIZE];
         ssize_t bytes = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
         if (bytes <= 0) {
-            return REQUEST_ERROR;
+            continue; // Ignore errors and continue accepting new connections
         }
+        buffer[bytes] = '\0'; // Null-terminate the buffer
         printf("Received request:\n%s\n", buffer);
-        buffer[bytes] = '\0';
 
         char *response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!";
         send(client_fd, response, strlen(response), 0);
 
         close(client_fd);
     }
-
-    close(fd);
-    return OK;
 }
