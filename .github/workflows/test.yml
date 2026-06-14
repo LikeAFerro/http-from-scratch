@@ -1,4 +1,4 @@
-name: Build and Test DNS from Scratch
+name: Build and Test HTTP from Scratch
 
 on:
   push:
