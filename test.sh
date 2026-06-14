@@ -5,6 +5,7 @@ HTTP=./http-from-scratch
 LOG_FILE="test.log"
 PASS=0
 FAIL=0
+[ -n "$1" ] && [ "$1" = "valgrind" ] && HTTP="valgrind --leak-check=full --error-exitcode=1 $HTTP"
 
 # Clear previous log
 echo "" > "$LOG_FILE"
@@ -13,6 +14,8 @@ echo "" > "$LOG_FILE"
 check_response() {
   $HTTP &
   server_PID=$!
+
+  sleep 1 # Give the server a moment to start
 
   desc=$1
   expected=$2

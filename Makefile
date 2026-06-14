@@ -18,17 +18,20 @@ all: $(TARGET)
 $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
+test: all
+	./test.sh
+
 # Force a clean environment, compile with ASAN, test, and clean up afterwards
-memcheck:
+asan:
 	$(MAKE) clean
 	$(MAKE) $(TARGET) CFLAGS="$(CFLAGS) $(ASAN_FLAGS)"
 	./test.sh
 	$(MAKE) clean
 
-test: all
-	./test.sh
+valgrind: all
+	./test.sh valgrind
 
 clean:
 	rm -f $(TARGET) $(OBJ) test.log
 
-.PHONY: all test clean memcheck
+.PHONY: all test clean asan valgrind
