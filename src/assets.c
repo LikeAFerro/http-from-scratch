@@ -174,11 +174,11 @@ http_status_t handle_request(const http_request_t *request, http_response_t *res
             if (fread(response->body, 1, response->content_length, file) !=
                 response->content_length) {
                 free(response->body);
-                fclose(file); // fclose also closes file_fd
-                return NOT_FOUND; // Failed to read the entire file
+                fclose(file);        // fclose also closes file_fd
+                return MEMORY_ERROR; // Failed to read the entire file
             }
             response->body[response->content_length] = '\0'; // Null-terminate the body
-            fclose(file); // fclose also closes file_fd
+            fclose(file);                                    // fclose also closes file_fd
         } else {
             close(file_fd); // HEAD: fd no longer needed
         }
