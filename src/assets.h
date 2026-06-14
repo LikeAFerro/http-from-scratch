@@ -12,9 +12,17 @@
 #define VERSION_SIZE 16
 #define BAD_REQUEST_RESPONSE "HTTP/1.1 400 Bad Request\r\nContent-Length: 11\r\n\r\nBad Request"
 #define NOT_FOUND_RESPONSE "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nNot Found"
+#define INTERNAL_ERROR_RESPONSE                                                                    \
+    "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 21\r\n\r\nInternal Server Error"
 #define N 1
 
-typedef enum { SOCKET_ERROR, OK = 200, BAD_REQUEST = 400, NOT_FOUND = 404 } http_status_t;
+typedef enum {
+    SOCKET_ERROR,
+    MEMORY_ERROR,
+    OK = 200,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404
+} http_status_t;
 
 typedef struct {
     char method[METHOD_SIZE];
@@ -32,6 +40,5 @@ typedef struct {
 http_status_t http_server();
 http_status_t parse_request(const char *request_str, http_request_t *request);
 http_status_t handle_request(const http_request_t *request, http_response_t *response);
-http_status_t build_status_line(const http_request_t *request, http_response_t *response);
 
 #endif // ASSETS_H

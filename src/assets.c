@@ -1,6 +1,7 @@
 #include "assets.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -75,6 +76,10 @@ http_status_t http_server() {
             case NOT_FOUND:
                 send(client_fd, NOT_FOUND_RESPONSE, strlen(NOT_FOUND_RESPONSE), 0);
                 break;
+            case MEMORY_ERROR:
+                // For memory errors, we can send a 500 Internal Server Error response
+                send(client_fd, INTERNAL_ERROR_RESPONSE, strlen(INTERNAL_ERROR_RESPONSE), 0);
+                break;
             default:
                 send(client_fd, BAD_REQUEST_RESPONSE, strlen(BAD_REQUEST_RESPONSE), 0);
             }
@@ -93,7 +98,9 @@ http_status_t http_server() {
                  response.content_length);
         send(client_fd, headers, strlen(headers), 0);
 
-        send(client_fd, response.body, response.content_length, 0);
+        if (response.body) {
+            send(client_fd, response.body, response.content_length, 0);
+        }
 
         free(response.body);
         close(client_fd);
@@ -144,9 +151,22 @@ http_status_t handle_request(const http_request_t *request, http_response_t *res
         // If the method is GET, read the file content into the response body
         if (strcmp(request->method, "GET") == 0) {
             response->body = malloc(response->content_length + 1);
+            if (!response->body) {
+                return MEMORY_ERROR; // Memory allocation failed
+            }
 
+            // Read the file content
             FILE *file = fopen(full_path, "rb");
-            fread(response->body, 1, response->content_length, file);
+            if (!file) {
+                free(response->body);
+                return NOT_FOUND; // File could not be opened
+            }
+            if (fread(response->body, 1, response->content_length, file) !=
+                response->content_length) {
+                free(response->body);
+                fclose(file);
+                return NOT_FOUND; // Failed to read the entire file
+            }
             response->body[response->content_length] = '\0'; // Null-terminate the body
             fclose(file);
         }
