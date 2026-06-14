@@ -1,7 +1,7 @@
 #include "assets.h"
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -138,13 +138,22 @@ http_status_t handle_request(const http_request_t *request, http_response_t *res
 
         char full_path[512];
         snprintf(full_path, sizeof(full_path), "./www%s", request->path);
-        struct stat st;
 
-        // Check if the file exists and is a regular file
-        if (stat(full_path, &st) != 0) {
+        // Open the file first, then stat the fd to avoid TOCTOU race
+        int file_fd = open(full_path, O_RDONLY | O_NOFOLLOW);
+        if (file_fd == -1) {
             response->status_code = NOT_FOUND;
             return NOT_FOUND;
         }
+
+        struct stat st;
+        // Check that the opened fd refers to a regular file
+        if (fstat(file_fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+            close(file_fd);
+            response->status_code = NOT_FOUND;
+            return NOT_FOUND;
+        }
+
         strcpy(response->version, request->version); // Echo back the HTTP version
         response->content_length = st.st_size;
 
@@ -152,23 +161,26 @@ http_status_t handle_request(const http_request_t *request, http_response_t *res
         if (strcmp(request->method, "GET") == 0) {
             response->body = malloc(response->content_length + 1);
             if (!response->body) {
+                close(file_fd);
                 return MEMORY_ERROR; // Memory allocation failed
             }
 
-            // Read the file content
-            FILE *file = fopen(full_path, "rb");
+            FILE *file = fdopen(file_fd, "rb");
             if (!file) {
+                close(file_fd);
                 free(response->body);
-                return NOT_FOUND; // File could not be opened
+                return MEMORY_ERROR; // fdopen failed (resource exhaustion)
             }
             if (fread(response->body, 1, response->content_length, file) !=
                 response->content_length) {
                 free(response->body);
-                fclose(file);
+                fclose(file); // fclose also closes file_fd
                 return NOT_FOUND; // Failed to read the entire file
             }
             response->body[response->content_length] = '\0'; // Null-terminate the body
-            fclose(file);
+            fclose(file); // fclose also closes file_fd
+        } else {
+            close(file_fd); // HEAD: fd no longer needed
         }
 
         response->status_code = OK;
