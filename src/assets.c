@@ -114,8 +114,14 @@ http_status_t parse_request(const char *request_str, http_request_t *request) {
 
     // Parse the request line (e.g., "GET /index.html HTTP/1.1")
     if (sscanf(request_str, "%7s %255s %15s", request->method, request->path, request->version) !=
-        3) {
+            3 ||
+        request->path[0] != '/') {
         return BAD_REQUEST;
+    }
+
+    if (strcmp(request->path, "/") == 0) {
+        // Default to index.html if root is requested
+        strcpy(request->path, "/index.html");
     }
 
     // Verify that the method is either GET or HEAD

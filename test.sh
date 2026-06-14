@@ -42,8 +42,10 @@ check_response() {
 }
 
 mkdir -p www
-echo "Hello, World!" > www/test.txt
+[ ! -f www/test.txt ] && echo "Hello, World!" > www/test.txt
+[ ! -f www/index.html ] && echo "<html><body><h1>Test Page</h1></body></html>" > www/index.html
 echo "=== Valid Usage ==="
+check_response "Request root (index.html)" 200 "" # Should serve index.html by default
 check_response "Request existing file" 200 "test.txt"
 check_response "HEAD request for existing file" 200 "test.txt" "-I"
 check_response "Request non-existing file" 404 "nonexistent.txt"
