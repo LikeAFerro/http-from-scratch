@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Improved test script for the http-from-scratch project.
 
-HTTP=./http-from-scratch
+# Set up a temporary directory with test files
+TEST_DIR=$(mktemp -d)
+trap 'rm -rf $TEST_DIR' EXIT
+echo "Hello, World!" > "$TEST_DIR/test.txt"
+echo "<html><body>Hello</body></html>" > "$TEST_DIR/index.html"
+
+HTTP="./http-from-scratch -r $TEST_DIR"
 LOG_FILE="test.log"
 PASS=0
 FAIL=0
@@ -41,9 +47,6 @@ check_response() {
 
 }
 
-mkdir -p www
-[ ! -f www/test.txt ] && echo "Hello, World!" > www/test.txt
-[ ! -f www/index.html ] && echo "<html><body><h1>Test Page</h1></body></html>" > www/index.html
 echo "=== Valid Usage ==="
 check_response "Request root (index.html)" 200 "" # Should serve index.html by default
 check_response "Request existing file" 200 "test.txt"

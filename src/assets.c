@@ -1,5 +1,4 @@
 #include "assets.h"
-#include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -8,7 +7,40 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-http_status_t http_server() {
+http_status_t http_server_config(int argc, char *argv[], http_server_t *server) {
+    if (!server) {
+        return BAD_REQUEST;
+    }
+    // Set default values
+    strncpy(server->server_ip, DEFAULT_SERVER_IP, sizeof(server->server_ip));
+    server->port = DEFAULT_PORT;
+    snprintf(server->root_dir, sizeof(server->root_dir), "%s", "./www");
+
+    // Parse command-line arguments
+    int opt;
+    while ((opt = getopt(argc, argv, ":p:r:h")) != -1) {
+        switch (opt) {
+        case 'p':
+            if (atoi(optarg) <= 0 || atoi(optarg) > 65535) {
+                return BAD_REQUEST; // Invalid port number
+            }
+            server->port = atoi(optarg);
+            break;
+        case 'r':
+            strncpy(server->root_dir, optarg, sizeof(server->root_dir) - 1);
+            server->root_dir[sizeof(server->root_dir) - 1] = '\0';
+            break;
+        case 'h':
+            return HELP;
+        default:
+            return BAD_REQUEST;
+        }
+    }
+
+    return OK;
+}
+
+http_status_t http_server(const http_server_t *server) {
     // Create socket
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1) {
@@ -18,8 +50,8 @@ http_status_t http_server() {
     // Bind and listen
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
-    inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr);
+    server_addr.sin_port = htons(server->port);
+    inet_pton(AF_INET, server->server_ip, &server_addr.sin_addr);
 
     int opt = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) != 0) {
@@ -34,7 +66,7 @@ http_status_t http_server() {
         return SOCKET_ERROR;
     }
 
-    printf("Server is listening on %s:%d\n", SERVER_IP, PORT);
+    printf("Server is listening on %s:%u\n", server->server_ip, server->port);
 
     // Main loop to accept and handle requests
     while (1) {
@@ -67,7 +99,7 @@ http_status_t http_server() {
         // Handle the request and prepare the response
         http_response_t response;
         response.body = NULL; // Initialize body to NULL
-        status = handle_request(&request, &response);
+        status = handle_request(server, &request, &response);
         if (status != OK) {
             switch (status) {
             case BAD_REQUEST:
@@ -132,8 +164,9 @@ http_status_t parse_request(const char *request_str, http_request_t *request) {
     return OK;
 }
 
-http_status_t handle_request(const http_request_t *request, http_response_t *response) {
-    if (!request || !response || strstr(request->version, "HTTP/") == NULL) {
+http_status_t handle_request(const http_server_t *server, const http_request_t *request,
+                             http_response_t *response) {
+    if (!server || !request || !response || strstr(request->version, "HTTP/") == NULL) {
         return BAD_REQUEST;
     }
 
@@ -142,8 +175,8 @@ http_status_t handle_request(const http_request_t *request, http_response_t *res
             return BAD_REQUEST; // Prevent directory traversal
         }
 
-        char full_path[512];
-        snprintf(full_path, sizeof(full_path), "./www%s", request->path);
+        char full_path[FULL_PATH_SIZE];
+        snprintf(full_path, sizeof(full_path), "%s%s", server->root_dir, request->path);
 
         // Open the file first, then stat the fd to avoid TOCTOU race
         int file_fd = open(full_path, O_RDONLY | O_NOFOLLOW);
