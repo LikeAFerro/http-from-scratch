@@ -32,5 +32,6 @@ typedef struct {
 http_status_t http_server();
 http_status_t parse_request(const char *request_str, http_request_t *request);
 http_status_t handle_request(const http_request_t *request, http_response_t *response);
+http_status_t build_status_line(const http_request_t *request, http_response_t *response);
 
 #endif // ASSETS_H

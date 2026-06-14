@@ -124,7 +124,7 @@ http_status_t handle_request(const http_request_t *request, http_response_t *res
         return BAD_REQUEST;
     }
 
-    if (strcmp(request->method, "GET") == 0) {
+    if (strcmp(request->method, "GET") == 0 || strcmp(request->method, "HEAD") == 0) {
         if (strstr(request->path, "..") != NULL) {
             return BAD_REQUEST; // Prevent directory traversal
         }
@@ -135,22 +135,25 @@ http_status_t handle_request(const http_request_t *request, http_response_t *res
 
         // Check if the file exists and is a regular file
         if (stat(full_path, &st) != 0) {
+            response->status_code = NOT_FOUND;
             return NOT_FOUND;
         }
         strcpy(response->version, request->version); // Echo back the HTTP version
         response->content_length = st.st_size;
-        response->body = malloc(response->content_length + 1);
 
-        FILE *file = fopen(full_path, "rb");
-        fread(response->body, 1, response->content_length, file);
-        response->body[response->content_length] = '\0'; // Null-terminate the body
-        fclose(file);
-        response->status_code = OK;
-    } else if (strcmp(request->method, "HEAD") == 0) {
-        // Handle HEAD request
+        // If the method is GET, read the file content into the response body
+        if (strcmp(request->method, "GET") == 0) {
+            response->body = malloc(response->content_length + 1);
+
+            FILE *file = fopen(full_path, "rb");
+            fread(response->body, 1, response->content_length, file);
+            response->body[response->content_length] = '\0'; // Null-terminate the body
+            fclose(file);
+        }
+
         response->status_code = OK;
     } else {
-        return BAD_REQUEST;
+        response->status_code = BAD_REQUEST;
     }
-    return OK;
+    return response->status_code;
 }
