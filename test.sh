@@ -15,10 +15,10 @@ check_response() {
   server_PID=$!
   desc=$1
   expected=$2
-  sleep 1
+  sleep 1 # Give the server a moment to start
   echo -e "\n[TEST]: $desc -> $HTTP $*" >> "$LOG_FILE"
 
-  RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)
+  RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/"$3")
   kill $server_PID
   wait $server_PID 2> /dev/null
 
@@ -34,8 +34,11 @@ check_response() {
 
 }
 
+mkdir -p www
+echo "Hello, World!" > www/test.txt
 echo "=== Valid Usage ==="
-check_response "Start server" 200
+check_response "Request existing file" 200 "test.txt"
+check_response "Request non-existing file" 404 "nonexistent.txt"
 
 echo ""
 echo "=== Summary ==="

@@ -2,15 +2,19 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 http_status_t http_server() {
+    // Create socket
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1) {
         return SOCKET_ERROR;
     }
+
+    // Bind and listen
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
@@ -31,24 +35,122 @@ http_status_t http_server() {
 
     printf("Server is listening on %s:%d\n", SERVER_IP, PORT);
 
+    // Main loop to accept and handle requests
     while (1) {
+        // Accept a new connection
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
         int client_fd = accept(fd, (struct sockaddr *)&client_addr, &client_addr_len);
         if (client_fd == -1) {
             return SOCKET_ERROR;
         }
-        char buffer[BUFFER_SIZE];
-        ssize_t bytes = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
+
+        // Read the request
+        char request_buffer[BUFFER_SIZE];
+        ssize_t bytes = recv(client_fd, request_buffer, BUFFER_SIZE - 1, 0);
         if (bytes <= 0) {
+            close(client_fd);
             continue; // Ignore errors and continue accepting new connections
         }
-        buffer[bytes] = '\0'; // Null-terminate the buffer
-        printf("Received request:\n%s\n", buffer);
+        request_buffer[bytes] = '\0'; // Null-terminate the buffer
 
-        char *response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!";
-        send(client_fd, response, strlen(response), 0);
+        // Parse the request
+        http_request_t request;
+        http_status_t status = parse_request(request_buffer, &request);
+        if (status != OK) {
+            send(client_fd, BAD_REQUEST_RESPONSE, strlen(BAD_REQUEST_RESPONSE), 0);
+            close(client_fd);
+            continue;
+        }
 
+        // Handle the request and prepare the response
+        http_response_t response;
+        response.body = NULL; // Initialize body to NULL
+        status = handle_request(&request, &response);
+        if (status != OK) {
+            switch (status) {
+            case BAD_REQUEST:
+                send(client_fd, BAD_REQUEST_RESPONSE, strlen(BAD_REQUEST_RESPONSE), 0);
+                break;
+            case NOT_FOUND:
+                send(client_fd, NOT_FOUND_RESPONSE, strlen(NOT_FOUND_RESPONSE), 0);
+                break;
+            default:
+                send(client_fd, BAD_REQUEST_RESPONSE, strlen(BAD_REQUEST_RESPONSE), 0);
+            }
+            free(response.body);
+            close(client_fd);
+            continue;
+        }
+
+        // Send the response
+        char headers[HEADER_SIZE];
+        snprintf(headers,
+                 sizeof(headers),
+                 "%s %d OK\r\nContent-Length: %zu\r\n\r\n",
+                 response.version,
+                 response.status_code,
+                 response.content_length);
+        send(client_fd, headers, strlen(headers), 0);
+
+        send(client_fd, response.body, response.content_length, 0);
+
+        free(response.body);
         close(client_fd);
     }
+}
+
+http_status_t parse_request(const char *request_str, http_request_t *request) {
+    if (!request_str || !request) {
+        return BAD_REQUEST;
+    }
+
+    // Parse the request line (e.g., "GET /index.html HTTP/1.1")
+    if (sscanf(request_str, "%7s %255s %15s", request->method, request->path, request->version) !=
+        3) {
+        return BAD_REQUEST;
+    }
+
+    // Verify that the method is either GET or HEAD
+    if (strcmp(request->method, "GET") != 0 && strcmp(request->method, "HEAD") != 0) {
+        return BAD_REQUEST;
+    }
+
+    return OK;
+}
+
+http_status_t handle_request(const http_request_t *request, http_response_t *response) {
+    if (!request || !response || strstr(request->version, "HTTP/") == NULL) {
+        return BAD_REQUEST;
+    }
+
+    if (strcmp(request->method, "GET") == 0) {
+        if (strstr(request->path, "..") != NULL) {
+            return BAD_REQUEST; // Prevent directory traversal
+        }
+
+        char full_path[512];
+        snprintf(full_path, sizeof(full_path), "./www%s", request->path);
+        struct stat st;
+
+        // Check if the file exists and is a regular file
+        if (stat(full_path, &st) != 0) {
+            return NOT_FOUND;
+        }
+        strcpy(response->version, request->version); // Echo back the HTTP version
+        response->content_length = st.st_size;
+        response->body = malloc(response->content_length + 1);
+
+        FILE *file = fopen(full_path, "rb");
+        fread(response->body, 1, response->content_length, file);
+        response->body[response->content_length] = '\0'; // Null-terminate the body
+        fclose(file);
+        response->status_code = OK;
+    } else if (strcmp(request->method, "HEAD") == 0) {
+        // Handle HEAD request
+        response->status_code = OK;
+    } else {
+        return BAD_REQUEST;
+    }
+    return OK;
 }
