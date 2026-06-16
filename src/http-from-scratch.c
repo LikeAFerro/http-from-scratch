@@ -7,7 +7,8 @@
 // - Browser tests (e.g., curl, Firefox, Chrome)
 // - Break-it challenge
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     http_server_t server;
     http_status_t status = http_server_config(argc, argv, &server);
     if (status != OK) {

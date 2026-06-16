@@ -7,7 +7,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-http_status_t http_server_config(int argc, char *argv[], http_server_t *server) {
+http_status_t http_server_config(int argc, char *argv[], http_server_t *server)
+{
     if (!server) {
         return BAD_REQUEST;
     }
@@ -40,7 +41,8 @@ http_status_t http_server_config(int argc, char *argv[], http_server_t *server) 
     return OK;
 }
 
-http_status_t http_server(const http_server_t *server) {
+http_status_t http_server(const http_server_t *server)
+{
     // Create socket
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1) {
@@ -122,12 +124,8 @@ http_status_t http_server(const http_server_t *server) {
 
         // Send the response
         char headers[HEADER_SIZE];
-        snprintf(headers,
-                 sizeof(headers),
-                 "%s %d OK\r\nContent-Length: %zu\r\n\r\n",
-                 response.version,
-                 response.status_code,
-                 response.content_length);
+        snprintf(headers, sizeof(headers), "%s %d OK\r\nContent-Length: %zu\r\n\r\n",
+                 response.version, response.status_code, response.content_length);
         send(client_fd, headers, strlen(headers), 0);
 
         if (response.body) {
@@ -139,7 +137,8 @@ http_status_t http_server(const http_server_t *server) {
     }
 }
 
-http_status_t parse_request(const char *request_str, http_request_t *request) {
+http_status_t parse_request(const char *request_str, http_request_t *request)
+{
     if (!request_str || !request) {
         return BAD_REQUEST;
     }
@@ -165,7 +164,8 @@ http_status_t parse_request(const char *request_str, http_request_t *request) {
 }
 
 http_status_t handle_request(const http_server_t *server, const http_request_t *request,
-                             http_response_t *response) {
+                             http_response_t *response)
+{
     if (!server || !request || !response || strstr(request->version, "HTTP/") == NULL) {
         return BAD_REQUEST;
     }
